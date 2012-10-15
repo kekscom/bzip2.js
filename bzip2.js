@@ -14,9 +14,7 @@
   (LGPL) version 2, available at http://www.gnu.org/copyleft/lgpl.html
 */
 
-var bzip2 = {};
-
-bzip2.array = function(bytes){
+exports.array = function (bytes) {
   var bit = 0, byte = 0;
   var BITMASK = [0, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF ];
   return function(n){
@@ -35,32 +33,32 @@ bzip2.array = function(bytes){
         n = 0;
       }
     }
-    return result
+    return result;
   }
 }
 
-bzip2.simple = function(bits){
-  var size = bzip2.header(bits);
-  var all = '', chunk = '';
-  do{
-    all += chunk;
-    chunk = bzip2.decompress(bits, size);
-  }while(chunk != -1);
-  return all;
+exports.simple = function (bits) {
+    var size = this.header(bits);
+    var all = '', chunk = '';
+    do{
+        all += chunk;
+        chunk = this.decompress(bits, size);
+    }while(chunk != -1);
+    return all;
 }
 
-bzip2.header = function(bits){
-  if(bits(8*3) != 4348520) throw "No magic number found";
-  var i = bits(8) - 48;
-  if(i < 1 || i > 9) throw "Not a BZIP archive";
-  return i;
+exports.header = function (bits) {
+    if(bits(8*3) != 4348520) throw "No magic number found";
+    var i = bits(8) - 48;
+    if(i < 1 || i > 9) throw "Not a BZIP archive";
+    return i;
 };
 
 
 //takes a function for reading the block data (starting with 0x314159265359)
 //a block size (0-9) (optional, defaults to 9)
 //a length at which to stop decompressing and return the output
-bzip2.decompress = function(bits, size, len){
+exports.decompress = function (bits, size, len) {
   var MAX_HUFCODE_BITS = 20;
   var MAX_SYMBOLS = 258;
   var SYMBOL_RUNA = 0;
@@ -73,9 +71,9 @@ bzip2.decompress = function(bits, size, len){
   if(h != "314159265359") throw "eek not valid bzip data";
   bits(32); //ignore CRC codes
   if(bits(1)) throw "unsupported obsolete version";
-  var origPtr = bits(24);
+    var origPtr = bits(24);
   if(origPtr > bufsize) throw "Initial position larger than buffer size";
-  var t = bits(16);
+    var t = bits(16);
   var symToByte = new Uint8Array(256), 
       symTotal = 0;
   for (i = 0; i < 16; i++) {
@@ -95,7 +93,7 @@ bzip2.decompress = function(bits, size, len){
   if(nSelectors == 0) throw "meh";
   var mtfSymbol = []; //TODO: possibly replace JS array with typed arrays
   for(var i = 0; i < groupCount; i++) mtfSymbol[i] = i;
-  var selectors = new Uint8Array(32768);
+    var selectors = new Uint8Array(32768);
   
   for(var i = 0; i < nSelectors; i++){
     for(var j = 0; bits(1); j++) if(j >= groupCount) throw "whoops another error"; 
@@ -115,47 +113,47 @@ bzip2.decompress = function(bits, size, len){
       while(true){
         if (t < 1 || t > MAX_HUFCODE_BITS) throw "I gave up a while ago on writing error messages";
         if(!bits(1)) break;
-        if(!bits(1)) t++;
-        else t--;
-      }
-      length[i] = t;
-    }
-    var  minLen,  maxLen;
-    minLen = maxLen = length[0];
-    for(var i = 1; i < symCount; i++){
-      if(length[i] > maxLen) maxLen = length[i];
-      else if(length[i] < minLen) minLen = length[i];
-    }
-    var hufGroup;
-    hufGroup = groups[j] = {};
-    hufGroup.permute = new Uint32Array(MAX_SYMBOLS);
-    hufGroup.limit = new Uint32Array(MAX_HUFCODE_BITS + 1);
-    hufGroup.base = new Uint32Array(MAX_HUFCODE_BITS + 1);
-    hufGroup.minLen = minLen;
-    hufGroup.maxLen = maxLen;
-    var base = hufGroup.base.subarray(1);
-    var limit = hufGroup.limit.subarray(1);
-    var pp = 0;
-    for(var i = minLen; i <= maxLen; i++)
+                if(!bits(1)) t++;
+                else t--;
+            }
+            length[i] = t;
+        }
+        var    minLen,    maxLen;
+        minLen = maxLen = length[0];
+        for(var i = 1; i < symCount; i++){
+            if(length[i] > maxLen) maxLen = length[i];
+            else if(length[i] < minLen) minLen = length[i];
+        }
+        var hufGroup;
+        hufGroup = groups[j] = {};
+        hufGroup.permute = new Uint32Array(MAX_SYMBOLS);
+        hufGroup.limit = new Uint32Array(MAX_HUFCODE_BITS + 1);
+        hufGroup.base = new Uint32Array(MAX_HUFCODE_BITS + 1);
+        hufGroup.minLen = minLen;
+        hufGroup.maxLen = maxLen;
+        var base = hufGroup.base.subarray(1);
+        var limit = hufGroup.limit.subarray(1);
+        var pp = 0;
+        for(var i = minLen; i <= maxLen; i++)
       for(var t = 0; t < symCount; t++) 
-      if(length[t] == i) hufGroup.permute[pp++] = t;
-      for(i = minLen; i <= maxLen; i++) temp[i] = limit[i] = 0;
-      for(i = 0; i < symCount; i++) temp[length[i]]++;
-      pp = t = 0;
-      for(i = minLen; i < maxLen; i++) {
-        pp += temp[i];
-        limit[i] = pp - 1;
-        pp <<= 1;
-        base[i+1] = pp - (t += temp[i]);
-      }
-      limit[maxLen]=pp+temp[maxLen]-1;
-      base[minLen]=0;
-  }
-  var byteCount = new Uint32Array(256);
-  for(var i = 0; i < 256; i++) mtfSymbol[i] = i;
-  var runPos, count, symCount, selector;
-  runPos = count = symCount = selector = 0;
-  var buf = new Uint32Array(bufsize);
+            if(length[t] == i) hufGroup.permute[pp++] = t;
+            for(i = minLen; i <= maxLen; i++) temp[i] = limit[i] = 0;
+            for(i = 0; i < symCount; i++) temp[length[i]]++;
+            pp = t = 0;
+            for(i = minLen; i < maxLen; i++) {
+                pp += temp[i];
+                limit[i] = pp - 1;
+                pp <<= 1;
+                base[i+1] = pp - (t += temp[i]);
+            }
+            limit[maxLen]=pp+temp[maxLen]-1;
+            base[minLen]=0;
+    }
+    var byteCount = new Uint32Array(256);
+    for(var i = 0; i < 256; i++) mtfSymbol[i] = i;
+    var runPos, count, symCount, selector;
+    runPos = count = symCount = selector = 0;
+    var buf = new Uint32Array(bufsize);
   while(true){
     if(!(symCount--)){
       symCount = GROUP_SIZE - 1;
@@ -167,15 +165,15 @@ bzip2.decompress = function(bits, size, len){
     i = hufGroup.minLen;
     j = bits(i);
     while(true){
-      if(i > hufGroup.maxLen) throw "rawr i'm a dinosaur";
-      if(j <= limit[i]) break;
-      i++;
-      j = (j << 1) | bits(1);
-    }
-    j -= base[i];
-    if(j < 0 || j >= MAX_SYMBOLS) throw "moo i'm a cow";
-    var nextSym = hufGroup.permute[j];
-    if (nextSym == SYMBOL_RUNA || nextSym == SYMBOL_RUNB) {
+            if(i > hufGroup.maxLen) throw "rawr i'm a dinosaur";
+            if(j <= limit[i]) break;
+            i++;
+            j = (j << 1) | bits(1);
+        }
+        j -= base[i];
+        if(j < 0 || j >= MAX_SYMBOLS) throw "moo i'm a cow";
+        var nextSym = hufGroup.permute[j];
+        if (nextSym == SYMBOL_RUNA || nextSym == SYMBOL_RUNB) {
       if(!runPos){
         runPos = 1;
         t = 0;
@@ -194,34 +192,34 @@ bzip2.decompress = function(bits, size, len){
     }
     if(nextSym > symTotal) break;
     if(count >= bufsize) throw "I can't think of anything. Error";
-    i = nextSym -1;
-    uc = mtfSymbol[i];
-    mtfSymbol.splice(i, 1);
-    mtfSymbol.splice(0, 0, uc);
-    uc = symToByte[uc];
-    byteCount[uc]++;
-    buf[count++] = uc;
-  }
-  if(origPtr < 0 || origPtr >= count) throw "I'm a monkey and I'm throwing something at someone, namely you";
-  var j = 0;
-  for(var i = 0; i < 256; i++){
-    k = j + byteCount[i];
-    byteCount[i] = j;
-    j = k;
-  }
-  for(var i = 0; i < count; i++){
-    uc = buf[i] & 0xff;
-    buf[byteCount[uc]] |= (i << 8);
-    byteCount[uc]++;
-  }
-  var pos = 0, current = 0, run = 0;
-  if(count) {
-    pos = buf[origPtr];
-    current = (pos & 0xff);
-    pos >>= 8;
-    run = -1;
-  }
-  count = count;
+        i = nextSym -1;
+        uc = mtfSymbol[i];
+        mtfSymbol.splice(i, 1);
+        mtfSymbol.splice(0, 0, uc);
+        uc = symToByte[uc];
+        byteCount[uc]++;
+        buf[count++] = uc;
+    }
+    if(origPtr < 0 || origPtr >= count) throw "I'm a monkey and I'm throwing something at someone, namely you";
+    var j = 0;
+    for(var i = 0; i < 256; i++){
+        k = j + byteCount[i];
+        byteCount[i] = j;
+        j = k;
+    }
+    for(var i = 0; i < count; i++){
+        uc = buf[i] & 0xff;
+        buf[byteCount[uc]] |= (i << 8);
+        byteCount[uc]++;
+    }
+    var pos = 0, current = 0, run = 0;
+    if(count) {
+        pos = buf[origPtr];
+        current = (pos & 0xff);
+        pos >>= 8;
+        run = -1;
+    }
+    count = count;
   var output = '';
   var copies, previous, outbyte;
   if(!len) len = Infinity;
@@ -238,12 +236,12 @@ bzip2.decompress = function(bits, size, len){
     }else{
       copies = 1;
       outbyte = current;
+        }
+        while(copies--){
+            output += (String.fromCharCode(outbyte));
+            if(!--len) return output;
+        }
+        if(current != previous) run = 0;
     }
-    while(copies--){
-      output += (String.fromCharCode(outbyte));
-      if(!--len) return output;
-    }
-    if(current != previous) run = 0;
-  }
-  return output;
+    return output;
 }
